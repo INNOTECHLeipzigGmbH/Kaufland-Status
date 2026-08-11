@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaufland-Projekte – Statusreport</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-1-dark:  #184f95;
+    --series-1-light: #cde2fb;
+    --status-good:      #0ca30c;
+    --status-warning:   #fab219;
+    --status-serious:   #ec835a;
+    --status-critical:  #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-1-dark:  #86b6ef;
+      --series-1-light: #184f95;
+      --status-good:      #0ca30c;
+      --status-warning:   #fab219;
+      --status-serious:   #ec835a;
+      --status-critical:  #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-1-dark:  #86b6ef;
+    --series-1-light: #184f95;
+    --status-good:      #0ca30c;
+    --status-warning:   #fab219;
+    --status-serious:   #ec835a;
+    --status-critical:  #d03b3b;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body.viz-root {
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+  .subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; }
+  .meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  .theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--text-primary); }
+
+  section { margin-bottom: 36px; }
+  h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin: 0 0 12px; }
+  .section-note { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; }
+
+  /* KPI tiles */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .kpi-value { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .kpi-tile.flag .kpi-value { color: var(--status-critical); }
+
+  /* bar chart */
+  .barchart { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { width: 118px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; text-align: right; }
+  .bar-track { flex: 1; height: 18px; background: var(--gridline); border-radius: 3px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px 0 0 3px; }
+  .bar-count { width: 30px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* timeline */
+  .timeline-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow-x: auto; }
+  .timeline-row-label { font-size: 12px; fill: var(--text-secondary); }
+  .timeline-axis-label { font-size: 11px; fill: var(--text-muted); }
+  .timeline-today-label { font-size: 11px; fill: var(--text-secondary); font-weight: 600; }
+
+  /* status chips */
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+  .chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .chip-good { background: color-mix(in srgb, var(--status-good) 14%, transparent); color: var(--text-primary); }
+  .chip-good .chip-dot { background: var(--status-good); }
+  .chip-warning { background: color-mix(in srgb, var(--status-warning) 18%, transparent); color: var(--text-primary); }
+  .chip-warning .chip-dot { background: var(--status-warning); }
+  .chip-critical { background: color-mix(in srgb, var(--status-critical) 14%, transparent); color: var(--text-primary); }
+  .chip-critical .chip-dot { background: var(--status-critical); }
+  .chip-muted { color: var(--text-muted); }
+  .chip-muted .chip-dot { background: var(--baseline); }
+
+  .lph-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 22px; padding: 0 6px; border-radius: 6px;
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: #fff;
+  }
+  .lph-badge.none { background: var(--baseline); color: var(--text-secondary); }
+
+  /* table */
+  table.proj-table { width: 100%; border-collapse: collapse; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table.proj-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--gridline); }
+  table.proj-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gridline); vertical-align: middle; }
+  table.proj-table tbody tr.main-row { cursor: pointer; }
+  table.proj-table tbody tr.main-row:hover { background: color-mix(in srgb, var(--series-1) 6%, transparent); }
+  table.proj-table tbody tr:last-child td { border-bottom: none; }
+  .proj-name { font-weight: 600; }
+  .proj-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .caret { display: inline-block; transition: transform 0.15s; color: var(--text-muted); margin-right: 6px; }
+  .main-row.expanded .caret { transform: rotate(90deg); }
+  .empty-dash { color: var(--text-muted); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--gridline); }
+  .detail-row.collapsed { display: none; }
+  .detail-inner { padding: 6px 24px 20px 40px; background: var(--page-plane); }
+  .detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .detail-block h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 14px 0 8px; }
+  .detail-block:first-child h4:first-child { margin-top: 4px; }
+  .milestone-list { display: flex; flex-direction: column; gap: 6px; }
+  .milestone { display: flex; justify-content: space-between; font-size: 12px; gap: 10px; }
+  .milestone-name { color: var(--text-secondary); }
+  .milestone-date { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .milestone.provisional .milestone-date::after { content: " *"; color: var(--series-1); }
+  .milestone.flagged .milestone-date { color: var(--status-critical); }
+  .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .notes-box { margin-top: 12px; font-size: 12px; color: var(--text-secondary); background: color-mix(in srgb, var(--status-warning) 10%, transparent); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+
+  /* gaps list */
+  .gaps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .gap-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .gap-card h3 { font-size: 13px; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  .gap-card ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
+  .gap-card ul li strong { color: var(--text-primary); }
+  .count-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background: var(--status-critical); color:#fff; font-size:11px; font-weight:700; }
+
+  footer.legend { font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--gridline); padding-top: 16px; line-height: 1.7; }
+  footer.legend b { color: var(--text-secondary); }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .detail-cols { grid-template-columns: 1fr; }
+    .gaps-grid { grid-template-columns: 1fr; }
+    .bar-label { width: 90px; }
+  }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="title">Kaufland-Projekte – Statusreport</p>
+      <p class="subtitle">Automatisch erzeugt aus „Aufstellung Kaufländer.xlsx“ · INNOTECH Leipzig</p>
+      <p class="meta" id="generated-meta"></p>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button">Dunkles Design</button>
+  </div>
+
+  <section>
+    <h2>Überblick</h2>
+    <div class="kpi-row" id="kpi-row"></div>
+  </section>
+
+  <section>
+    <h2>Projekte nach aktueller Leistungsphase (LPH)</h2>
+    <p class="section-note">„Ohne Angabe“ heißt: es gibt bereits Termine/Checklisten-Einträge, aber kein Wert in Spalte „Aktuelle LPH“.</p>
+    <div class="barchart" id="phase-chart"></div>
+  </section>
+
+  <section>
+    <h2>Bauzeitraum je Projekt</h2>
+    <p class="section-note">Balken von Baubeginn bis Bauende. Gestrichelte Linie = heute (11.08.2026). Rot umrandete Marker = im Original rot markierte Termine.</p>
+    <div class="timeline-card" id="timeline-card"></div>
+  </section>
+
+  <section>
+    <h2>Projektübersicht <span style="color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(Zeile anklicken für Details)</span></h2>
+    <table class="proj-table" id="proj-table">
+      <thead>
+        <tr>
+          <th>Projekt</th>
+          <th>PL Innotech</th>
+          <th>PL Kaufland</th>
+          <th>Aktuelle LPH</th>
+          <th>Baubeginn</th>
+          <th>Bauende</th>
+          <th>Offene Punkte</th>
+        </tr>
+      </thead>
+      <tbody id="proj-tbody"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Datenlücken &amp; To-Dos</h2>
+    <div class="gaps-grid" id="gaps-grid"></div>
+  </section>
+
+  <footer class="legend">
+    <p><b>Ampel-Checklisten</b> (Bestandsunterlagen, Objektidee, 400er Liste, LZK, Tauwasseranschlüsse, Durchbruchsangaben, Elektroliste, KG-400-Koordination, Kick-Off Baustelle, Spalte&nbsp;H ohne Titel): 1 = offen/kritisch, 2 = in Bearbeitung, 3 = erledigt – jeweils nach der Ampel-Symbolik aus der Originaldatei. Leer = noch nicht begonnen.</p>
+    <p><b>„*“ hinter einem Termin</b> markiert Zellen, die in der Originaldatei blau hinterlegt waren (vermutlich vorläufige/zu prüfende Termine statt bestätigter Termine – bitte gegenprüfen).</p>
+    <p><b>Offene Fragen an das Team:</b> Wofür stehen die Kürzel „LZK“ (Spalte J) und „LKZ“ (Spalte O) genau? Und wozu dient die Spalte zwischen „Kick-Off“ und „400er Liste“, die in der Vorlage keinen Titel trägt (hier als „Zusatzcheck Spalte H“ bezeichnet)? Eine kurze Antwort hilft, den Report inhaltlich zu schärfen.</p>
+  </footer>
+
+</div>
+
+<script>
+const DATA = [{"row": 4, "projekt": "33 Halle Trotha 7260 FiMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": [], "_flagged_red": []}, {"row": 5, "projekt": "34 Dresden Naußlitz 5840 FiMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": [], "_flagged_red": []}, {"row": 6, "projekt": "35 Weimar", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": "2026-02-13", "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": "2026-05-01", "kickoff_bau": null, "bauende": "2026-11-01", "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auswertung", "techn_biet", "wirtsch_vergaben", "auftrag"], "_flagged_red": []}, {"row": 7, "projekt": "36 Illmenau 4380 FiMA", "pl_innotech": "Marcus", "partner": null, "pl_kaufland": "Heinze", "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": "2026-03-27", "versand": "2026-03-30", "angebotsruecklauf": "2026-05-06", "auswertung": "2026-05-12", "techn_biet": "2026-05-19", "wirtsch_vergaben": null, "auftrag": "2026-05-26", "aktuelle_lph": 8, "tauwasser": 3, "durchbruch": 3, "elektroliste": 3, "kg400koord": 1, "baubeginn": "2026-06-23", "kickoff_bau": 1, "bauende": "2027-01-25", "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auswertung"], "_flagged_red": []}, {"row": 8, "projekt": "37 Naumburg 2900 FiMA", "pl_innotech": "Marcus", "partner": null, "pl_kaufland": "Pohle", "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": "2026-03-23", "versand": "2026-03-16", "angebotsruecklauf": null, "auswertung": "2026-04-17", "techn_biet": "2026-04-30", "wirtsch_vergaben": "2026-05-08", "auftrag": "2026-04-10", "aktuelle_lph": 8, "tauwasser": 1, "durchbruch": 1, "elektroliste": 1, "kg400koord": 1, "baubeginn": "2026-06-01", "kickoff_bau": null, "bauende": null, "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auftrag"], "_flagged_red": []}, {"row": 9, "projekt": "38 Leipzig Gohlis 7460 FiMA", "pl_innotech": "Henryk", "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": "2026-03-06", "versand": "2026-03-13", "angebotsruecklauf": "2026-04-10", "auswertung": "2026-04-24", "techn_biet": "2026-05-08", "wirtsch_vergaben": "2026-05-22", "auftrag": "2026-06-05", "aktuelle_lph": 8, "tauwasser": 1, "durchbruch": 1, "elektroliste": 3, "kg400koord": 1, "baubeginn": "2026-06-22", "kickoff_bau": null, "bauende": "2027-02-11", "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auswertung", "techn_biet"], "_flagged_red": []}, {"row": 10, "projekt": "39 Mühlhausen 3370 FiMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": "2026-05-22", "versand": "2026-05-15", "angebotsruecklauf": "2026-06-12", "auswertung": "2026-06-19", "techn_biet": "2026-07-03", "wirtsch_vergaben": "2026-07-10", "auftrag": "2026-07-13", "aktuelle_lph": 8, "tauwasser": 3, "durchbruch": 3, "elektroliste": 1, "kg400koord": 1, "baubeginn": "2026-08-10", "kickoff_bau": 1, "bauende": "2027-05-01", "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auswertung"], "_flagged_red": ["baubeginn", "bauende"]}, {"row": 11, "projekt": "40 Schmalkalden 6090 FiMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": "2026-05-13", "kostenberechnung": null, "lkz": null, "lph56": "2026-06-01", "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": "2026-07-24", "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": "2026-08-17", "kickoff_bau": null, "bauende": "2027-05-01", "_flagged_blue": ["lph3", "lph56", "versand", "angebotsruecklauf", "auswertung", "techn_biet", "wirtsch_vergaben", "auftrag"], "_flagged_red": []}, {"row": 12, "projekt": "41 Döbeln", "pl_innotech": null, "partner": "Remes", "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": "2026-05-27", "nachforderung": null, "lph3": "2026-08-28", "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": 3, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["lph2", "lph3"], "_flagged_red": []}, {"row": 13, "projekt": "42 Jena Löbstedt 3123 - FIMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": "2026-06-16", "nachforderung": null, "lph3": "2026-09-03", "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["lph2", "lph3"], "_flagged_red": []}, {"row": 14, "projekt": "43 Eisenberg 3280 - FIMA", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": 1, "kickoff_init": "?", "h_extra": null, "liste400": 1, "lzk": 1, "lph2": "2026-07-21", "nachforderung": null, "lph3": "2026-09-17", "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": 2, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["kickoff_init", "lph2", "lph3"], "_flagged_red": []}, {"row": 15, "projekt": "44 Borna 28890 - FIMA", "pl_innotech": null, "partner": null, "pl_kaufland": "Guido Schröter", "bestandsunterlagen": 1, "objektidee": 1, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": "2026-07-01", "nachforderung": null, "lph3": "2026-09-20", "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["lph2", "lph3"], "_flagged_red": []}, {"row": 16, "projekt": "45 Illmenau - Regenwasser", "pl_innotech": null, "partner": null, "pl_kaufland": null, "bestandsunterlagen": null, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": [], "_flagged_red": []}, {"row": 17, "projekt": "46 KL Möckern 7850 FiMa", "pl_innotech": null, "partner": null, "pl_kaufland": "Marianna Skura", "bestandsunterlagen": 2, "objektidee": null, "kickoff_init": null, "h_extra": null, "liste400": null, "lzk": null, "lph2": null, "nachforderung": null, "lph3": null, "kostenberechnung": "2026-08-04", "lkz": null, "lph56": "2026-08-21", "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["lph56", "versand", "angebotsruecklauf", "auswertung", "techn_biet", "wirtsch_vergaben", "auftrag"], "_flagged_red": []}, {"row": 18, "projekt": "47 Taucha 1620 - FIMA", "pl_innotech": null, "partner": null, "pl_kaufland": "Marianna Skura", "bestandsunterlagen": 2, "objektidee": 1, "kickoff_init": "2026-06-19", "h_extra": 1, "liste400": null, "lzk": null, "lph2": "2026-09-07", "nachforderung": null, "lph3": null, "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["kickoff_init", "h_extra", "lph2"], "_flagged_red": []}, {"row": 19, "projekt": "48 Arnstadt 2870 - FIMA", "pl_innotech": null, "partner": "B-Plan", "pl_kaufland": "Guido Schröter", "bestandsunterlagen": 2, "objektidee": 1, "kickoff_init": "2026-06-09", "h_extra": 1, "liste400": null, "lzk": null, "lph2": "2026-07-30", "nachforderung": "2026-08-10", "lph3": "2026-10-01", "kostenberechnung": null, "lkz": null, "lph56": null, "versand": null, "angebotsruecklauf": null, "auswertung": null, "techn_biet": null, "wirtsch_vergaben": null, "auftrag": null, "aktuelle_lph": null, "tauwasser": null, "durchbruch": null, "elektroliste": null, "kg400koord": null, "baubeginn": null, "kickoff_bau": null, "bauende": null, "_flagged_blue": ["kickoff_init", "h_extra", "lph2", "lph3", "lph56", "versand", "angebotsruecklauf", "auswertung", "techn_biet", "wirtsch_vergaben", "auftrag"], "_flagged_red": []}];
+
+const FIELD_LABELS = {
+  pl_innotech: "PL Innotech", partner: "Partner", pl_kaufland: "PL Kaufland",
+  bestandsunterlagen: "Bestandsunterlagen", objektidee: "Objektidee im Grundriss",
+  kickoff_init: "Kick-Off (Initiierung)", h_extra: "Zusatzcheck (Spalte H)",
+  liste400: "400er Liste", lzk: "LZK", lph2: "LPH 2", nachforderung: "Nachforderung",
+  lph3: "LPH 3", kostenberechnung: "Kostenberechnung", lkz: "LKZ", lph56: "LPH 5-6",
+  versand: "Versand", angebotsruecklauf: "Angebotsrücklauf", auswertung: "Auswertung",
+  techn_biet: "Techn. Bietergespräche", wirtsch_vergaben: "Wirtsch. Vergaben", auftrag: "Auftrag",
+  aktuelle_lph: "Aktuelle LPH", tauwasser: "Abstimmung Tauwasseranschlüsse", durchbruch: "Durchbruchsangaben",
+  elektroliste: "Elektroliste", kg400koord: "KG 400 Koordination", baubeginn: "Baubeginn",
+  kickoff_bau: "Kick-Off (Baustelle)", bauende: "Bauende"
+};
+const MILESTONE_ORDER = ["kickoff_init","lph2","nachforderung","lph3","kostenberechnung","lph56","versand","angebotsruecklauf","auswertung","techn_biet","wirtsch_vergaben","auftrag","baubeginn","bauende"];
+const CHECKLIST_ORDER = ["bestandsunterlagen","objektidee","h_extra","liste400","lzk","tauwasser","durchbruch","elektroliste","kg400koord","kickoff_bau"];
+const TODAY = new Date("2026-08-11T00:00:00");
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function statusChip(value, label) {
+  const wrap = document.createElement("span");
+  if (value === null || value === undefined) {
+    wrap.className = "chip chip-muted";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: –`;
+  } else if (value >= 3) {
+    wrap.className = "chip chip-good";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: erledigt`;
+  } else if (value === 2) {
+    wrap.className = "chip chip-warning";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: in Bearbeitung`;
+  } else {
+    wrap.className = "chip chip-critical";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: offen`;
+  }
+  return wrap;
+}
+function lphBadge(v) {
+  const span = document.createElement("span");
+  if (v === null || v === undefined) {
+    span.className = "lph-badge none";
+    span.textContent = "–";
+    return span;
+  }
+  const t = Math.max(0, Math.min(1, (v - 1) / 8));
+  const light = [0xcd, 0xe2, 0xfb], dark = [0x0d, 0x36, 0x6b];
+  const c = light.map((l, i) => Math.round(l + (dark[i] - l) * t));
+  span.className = "lph-badge";
+  span.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+  span.style.color = t > 0.45 ? "#fff" : "#0b0b0b";
+  span.textContent = "LPH " + v;
+  return span;
+}
+
+function computeGaps(p) {
+  const gaps = [];
+  const hasAnyData = MILESTONE_ORDER.concat(CHECKLIST_ORDER).some(k => p[k] !== null) || p.pl_innotech || p.pl_kaufland || p.partner || p.aktuelle_lph !== null;
+  if (!hasAnyData) {
+    gaps.push("Projekt komplett unbearbeitet – noch keine Daten erfasst.");
+    return gaps;
+  }
+  if (!p.pl_innotech && !p.pl_kaufland) gaps.push("Kein Projektleiter zugeordnet (weder PL Innotech noch PL Kaufland).");
+  if (p.aktuelle_lph === null) gaps.push("„Aktuelle LPH“ fehlt, obwohl bereits Termine/Checklisten-Einträge vorhanden sind.");
+  if (p.kickoff_init === "?") gaps.push("Kick-Off-Termin (Initiierung) ist mit „?“ markiert – Termin unklar.");
+  if (p.baubeginn && !p.bauende) gaps.push("Baubeginn ist gesetzt, Bauende aber noch offen.");
+  if (p._flagged_red && p._flagged_red.length) gaps.push(`Termin(e) im Original rot markiert: ${p._flagged_red.map(k => FIELD_LABELS[k]).join(", ")} – wirkt kritisch, bitte gegenprüfen.`);
+  return gaps;
+}
+
+// ---------- KPI tiles ----------
+function renderKPIs() {
+  const total = DATA.length;
+  const lph8 = DATA.filter(p => p.aktuelle_lph === 8).length;
+  const emptyProjects = DATA.filter(p => computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett")).length;
+  const noPL = DATA.filter(p => !p.pl_innotech && !p.pl_kaufland && !(computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett"))).length;
+  const redFlags = DATA.filter(p => p._flagged_red && p._flagged_red.length).length;
+
+  const tiles = [
+    { value: total, label: "Projekte insgesamt" },
+    { value: lph8, label: "In Ausführung (LPH 8)" },
+    { value: emptyProjects, label: "Noch komplett unbearbeitet" },
+    { value: noPL, label: "Ohne zugewiesenen Projektleiter" },
+    { value: redFlags, label: "Mit rot markierten Terminen", flag: true },
+  ];
+  const row = document.getElementById("kpi-row");
+  tiles.forEach(t => {
+    const tile = document.createElement("div");
+    tile.className = "kpi-tile" + (t.flag && t.value > 0 ? " flag" : "");
+    tile.innerHTML = `<div class="kpi-value">${t.value}</div><div class="kpi-label">${t.label}</div>`;
+    row.appendChild(tile);
+  });
+}
+
+// ---------- Phase distribution bar chart ----------
+function renderPhaseChart() {
+  const buckets = {};
+  DATA.forEach(p => {
+    const key = p.aktuelle_lph === null ? "ohne" : String(p.aktuelle_lph);
+    buckets[key] = (buckets[key] || 0) + 1;
+  });
+  const order = Object.keys(buckets).filter(k => k !== "ohne").sort((a,b)=>a-b).concat(buckets["ohne"] ? ["ohne"] : []);
+  const max = Math.max(...Object.values(buckets));
+  const el = document.getElementById("phase-chart");
+  order.forEach(key => {
+    const count = buckets[key];
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const label = key === "ohne" ? "Ohne Angabe" : "LPH " + key;
+    const pct = (count / max) * 100;
+    const color = key === "ohne" ? "var(--baseline)" : "var(--series-1)";
+    row.innerHTML = `
+      <div class="bar-label">${label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+      <div class="bar-count">${count}</div>`;
+    el.appendChild(row);
+  });
+}
+
+// ---------- Timeline (dumbbell) ----------
+function renderTimeline() {
+  const rows = DATA.filter(p => p.baubeginn).map(p => ({
+    name: p.projekt,
+    start: new Date(p.baubeginn + "T00:00:00"),
+    end: p.bauende ? new Date(p.bauende + "T00:00:00") : null,
+    flagged: (p._flagged_red || []).includes("baubeginn") || (p._flagged_red || []).includes("bauende"),
+  }));
+  if (!rows.length) { document.getElementById("timeline-card").textContent = "Keine Projekte mit Baubeginn-Termin."; return; }
+
+  const allDates = rows.flatMap(r => [r.start, r.end].filter(Boolean)).concat([TODAY]);
+  const minDate = new Date(Math.min(...allDates) - 20*86400000);
+  const maxDate = new Date(Math.max(...allDates) + 20*86400000);
+  const width = 900, rowH = 40, leftPad = 190, rightPad = 20, topPad = 30, bottomPad = 30;
+  const height = topPad + rows.length * rowH + bottomPad;
+  const plotW = width - leftPad - rightPad;
+
+  function x(d) { return leftPad + ( (d - minDate) / (maxDate - minDate) ) * plotW; }
+
+  let months = [];
+  let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  while (cur <= maxDate) { months.push(new Date(cur)); cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1); }
+
+  let svg = `<svg viewBox="0 0 ${width} ${height}" width="100%" style="max-width:${width}px; display:block;">`;
+
+  months.forEach(m => {
+    const xm = x(m);
+    svg += `<line x1="${xm}" y1="${topPad-10}" x2="${xm}" y2="${height-bottomPad}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${xm}" y="${topPad-16}" class="timeline-axis-label" text-anchor="middle">${m.toLocaleDateString("de-DE",{month:"short",year:"2-digit"})}</text>`;
+  });
+
+  const xToday = x(TODAY);
+  svg += `<line x1="${xToday}" y1="${topPad-10}" x2="${xToday}" y2="${height-bottomPad}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  svg += `<text x="${xToday}" y="${height-bottomPad+16}" class="timeline-today-label" text-anchor="middle">heute</text>`;
+
+  rows.forEach((r, i) => {
+    const y = topPad + i * rowH + rowH/2;
+    svg += `<text x="${leftPad-14}" y="${y+4}" class="timeline-row-label" text-anchor="end">${r.name}</text>`;
+    const xs = x(r.start);
+    const xe = r.end ? x(r.end) : xs + 24;
+    const ringStart = r.flagged ? 'stroke="var(--status-critical)" stroke-width="2"' : 'stroke="var(--surface-1)" stroke-width="2"';
+    const ringEnd = r.flagged ? 'stroke="var(--status-critical)" stroke-width="2"' : 'stroke="var(--surface-1)" stroke-width="2"';
+    svg += `<line x1="${xs}" y1="${y}" x2="${xe}" y2="${y}" stroke="var(--series-1-light)" stroke-width="6" stroke-linecap="round"/>`;
+    svg += `<circle cx="${xs}" cy="${y}" r="6" fill="var(--series-1)" ${ringStart}/>`;
+    if (r.end) {
+      svg += `<circle cx="${xe}" cy="${y}" r="6" fill="var(--series-1-dark)" ${ringEnd}/>`;
+    } else {
+      svg += `<circle cx="${xe}" cy="${y}" r="6" fill="none" stroke="var(--baseline)" stroke-width="2" stroke-dasharray="2,2"/>`;
+      svg += `<text x="${xe+10}" y="${y+4}" class="timeline-axis-label">Bauende offen</text>`;
+    }
+  });
+
+  svg += `</svg>`;
+  document.getElementById("timeline-card").innerHTML = svg;
+}
+
+// ---------- Project table ----------
+function renderTable() {
+  const tbody = document.getElementById("proj-tbody");
+  DATA.forEach((p, idx) => {
+    const gaps = computeGaps(p);
+    const main = document.createElement("tr");
+    main.className = "main-row";
+    main.dataset.idx = idx;
+    main.innerHTML = `
+      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span></td>
+      <td>${p.pl_innotech || '<span class="empty-dash">–</span>'}</td>
+      <td>${p.pl_kaufland || '<span class="empty-dash">–</span>'}</td>
+      <td></td>
+      <td>${fmtDate(p.baubeginn) || '<span class="empty-dash">–</span>'}</td>
+      <td>${fmtDate(p.bauende) || '<span class="empty-dash">–</span>'}</td>
+      <td>${gaps.length ? `<span class="count-badge">${gaps.length}</span>` : '<span class="empty-dash">–</span>'}</td>
+    `;
+    main.children[3].appendChild(lphBadge(p.aktuelle_lph));
+    tbody.appendChild(main);
+
+    const detail = document.createElement("tr");
+    detail.className = "detail-row collapsed";
+    detail.dataset.idx = idx;
+    const td = document.createElement("td");
+    td.colSpan = 7;
+    const inner = document.createElement("div");
+    inner.className = "detail-inner";
+
+    const cols = document.createElement("div");
+    cols.className = "detail-cols";
+
+    const milestoneBlock = document.createElement("div");
+    milestoneBlock.className = "detail-block";
+    milestoneBlock.innerHTML = "<h4>Termine</h4>";
+    const mList = document.createElement("div");
+    mList.className = "milestone-list";
+    let anyMilestone = false;
+    MILESTONE_ORDER.forEach(key => {
+      const v = p[key];
+      if (v === null || v === undefined) return;
+      anyMilestone = true;
+      const row = document.createElement("div");
+      const isProvisional = (p._flagged_blue || []).includes(key);
+      const isFlagged = (p._flagged_red || []).includes(key);
+      row.className = "milestone" + (isProvisional ? " provisional" : "") + (isFlagged ? " flagged" : "");
+      const dateStr = v === "?" ? "unklar (?)" : fmtDate(v);
+      row.innerHTML = `<span class="milestone-name">${FIELD_LABELS[key]}</span><span class="milestone-date">${dateStr}</span>`;
+      mList.appendChild(row);
+    });
+    if (!anyMilestone) mList.innerHTML = '<span class="empty-dash">Noch keine Termine erfasst.</span>';
+    milestoneBlock.appendChild(mList);
+
+    const checklistBlock = document.createElement("div");
+    checklistBlock.className = "detail-block";
+    checklistBlock.innerHTML = "<h4>Checklisten-Status</h4>";
+    const cGrid = document.createElement("div");
+    cGrid.className = "chip-grid";
+    CHECKLIST_ORDER.forEach(key => {
+      cGrid.appendChild(statusChip(p[key], FIELD_LABELS[key]));
+    });
+    checklistBlock.appendChild(cGrid);
+
+    if (p.partner) {
+      checklistBlock.innerHTML += `<h4>Partner</h4><div style="font-size:12px;">${p.partner}</div>`;
+    }
+
+    cols.appendChild(milestoneBlock);
+    cols.appendChild(checklistBlock);
+    inner.appendChild(cols);
+
+    if (gaps.length) {
+      const notes = document.createElement("div");
+      notes.className = "notes-box";
+      notes.innerHTML = "<b>Offene Punkte:</b><br>" + gaps.map(g => "• " + g).join("<br>");
+      inner.appendChild(notes);
+    }
+
+    td.appendChild(inner);
+    detail.appendChild(td);
+    tbody.appendChild(detail);
+
+    main.addEventListener("click", () => {
+      detail.classList.toggle("collapsed");
+      main.classList.toggle("expanded");
+    });
+  });
+}
+
+// ---------- Gaps overview ----------
+function renderGaps() {
+  const grid = document.getElementById("gaps-grid");
+
+  const emptyList = DATA.filter(p => computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett")).map(p => p.projekt);
+  const noPLList = DATA.filter(p => !p.pl_innotech && !p.pl_kaufland && !emptyList.includes(p.projekt)).map(p => p.projekt);
+  const noLphList = DATA.filter(p => p.aktuelle_lph === null && !emptyList.includes(p.projekt)).map(p => p.projekt);
+  const openEndList = DATA.filter(p => p.baubeginn && !p.bauende).map(p => p.projekt);
+  const redList = DATA.filter(p => p._flagged_red && p._flagged_red.length).map(p => `${p.projekt} (${p._flagged_red.map(k=>FIELD_LABELS[k]).join(", ")})`);
+  const unclearList = DATA.filter(p => p.kickoff_init === "?").map(p => p.projekt);
+
+  const cards = [
+    { title: "Noch komplett unbearbeitet", items: emptyList },
+    { title: "Ohne zugewiesenen Projektleiter", items: noPLList },
+    { title: "„Aktuelle LPH“ nicht gepflegt (trotz vorhandener Daten)", items: noLphList },
+    { title: "Baubeginn gesetzt, Bauende offen", items: openEndList },
+    { title: "Rot markierte Termine (Original) – prüfen", items: redList },
+    { title: "Termin unklar markiert („?“)", items: unclearList },
+  ];
+
+  cards.forEach(c => {
+    if (!c.items.length) return;
+    const card = document.createElement("div");
+    card.className = "gap-card";
+    card.innerHTML = `<h3>${c.title} <span class="count-badge" style="background:var(--baseline); color:var(--text-primary);">${c.items.length}</span></h3>
+      <ul>${c.items.map(i => `<li>${i}</li>`).join("")}</ul>`;
+    grid.appendChild(card);
+  });
+}
+
+// ---------- Theme toggle ----------
+function setupTheme() {
+  const btn = document.getElementById("theme-toggle");
+  const stored = "light";
+  document.documentElement.setAttribute("data-theme", stored);
+  btn.textContent = "Dunkles Design";
+  btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    btn.textContent = next === "dark" ? "Helles Design" : "Dunkles Design";
+  });
+}
+
+document.getElementById("generated-meta").textContent = "Stand der Auswertung: 11.08.2026 · " + DATA.length + " Projekte (Nr. 33–48)";
+setupTheme();
+renderKPIs();
+renderPhaseChart();
+renderTimeline();
+renderTable();
+renderGaps();
+</script>
+</body>
+</html>
