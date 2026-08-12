@@ -218,6 +218,44 @@
     border-radius: 6px; padding: 7px 16px; font-size: 13px; cursor: pointer;
   }
   .save-status { font-size: 12px; color: var(--text-secondary); }
+
+  /* view tabs */
+  .view-tabs { display: flex; gap: 6px; margin-bottom: 24px; }
+  .view-tab {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .view-tab.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .view-panel.hidden { display: none; }
+
+  /* excel-style table */
+  .excel-note { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; }
+  .excel-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 78vh; background: var(--surface-1); }
+  table.excel-table { border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
+  table.excel-table th, table.excel-table td {
+    border: 1px solid var(--gridline); padding: 4px 7px; text-align: center;
+  }
+  table.excel-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--baseline); color: var(--text-primary);
+    font-weight: 700; font-size: 10.5px; line-height: 1.25;
+    white-space: normal; min-width: 66px; max-width: 110px;
+  }
+  table.excel-table tbody th {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--surface-1); text-align: left; font-weight: 600;
+    white-space: nowrap; min-width: 190px; box-shadow: 1px 0 0 var(--border);
+  }
+  table.excel-table thead th:first-child { position: sticky; left: 0; top: 0; z-index: 3; text-align: left; background: var(--baseline); }
+  table.excel-table tbody tr:nth-child(even) td, table.excel-table tbody tr:nth-child(even) th { background-color: color-mix(in srgb, var(--gridline) 35%, var(--surface-1)); }
+  table.excel-table tbody tr:nth-child(even) th { background-color: color-mix(in srgb, var(--gridline) 35%, var(--surface-1)); }
+  table.excel-table td.xstat-0 { color: var(--text-muted); }
+  table.excel-table td.xstat-1 { background: color-mix(in srgb, var(--status-critical) 30%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xstat-2 { background: color-mix(in srgb, var(--status-warning) 35%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xstat-3 { background: color-mix(in srgb, var(--status-good) 28%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xprovisional { color: var(--series-1); font-style: italic; }
+  table.excel-table td.xflagged { color: var(--status-critical); font-weight: 700; }
+  table.excel-table td.xlph { font-weight: 700; }
 </style>
 </head>
 <body class="viz-root">
@@ -232,6 +270,13 @@
     </div>
     <button class="theme-toggle" id="theme-toggle" type="button">Dunkles Design</button>
   </div>
+
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-dashboard" type="button" data-view="dashboard">Dashboard</button>
+    <button class="view-tab" id="tab-excel" type="button" data-view="excel">Tabellenansicht (wie Excel)</button>
+  </div>
+
+  <div class="view-panel" id="view-dashboard">
 
   <section>
     <h2>Überblick</h2>
@@ -275,6 +320,18 @@
     <h2>Datenlücken &amp; To-Dos</h2>
     <div class="gaps-grid" id="gaps-grid"></div>
   </section>
+
+  </div>
+
+  <div class="view-panel hidden" id="view-excel">
+    <section>
+      <h2>Tabellenansicht <span style="color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(Spaltenreihenfolge wie in der Original-Excel)</span></h2>
+      <p class="excel-note">Nur Lesen – zum Ändern von Werten bitte in der Dashboard-Ansicht auf „✎ Bearbeiten“ gehen. Kopfzeile und erste Spalte bleiben beim Scrollen stehen, genau wie die eingefrorenen Bereiche in der Excel-Datei.</p>
+      <div class="excel-scroll">
+        <table class="excel-table" id="excel-table"></table>
+      </div>
+    </section>
+  </div>
 
   <footer class="legend">
     <p><b>Ampel-Checklisten</b> (Bestandsunterlagen, Objektidee, 400er Liste, LZK, Tauwasseranschlüsse, Durchbruchsangaben, Elektroliste, KG-400-Koordination, Kick-Off Baustelle, Spalte&nbsp;H ohne Titel): 1 = offen/kritisch, 2 = in Bearbeitung, 3 = erledigt – jeweils nach der Ampel-Symbolik aus der Originaldatei. Leer = noch nicht begonnen.</p>
@@ -807,6 +864,110 @@ function renderGaps() {
   if (!any) grid.innerHTML = '<span class="empty-dash">Keine offenen Punkte erkannt.</span>';
 }
 
+// ---------- Excel-style table view ----------
+const EXCEL_COLUMNS = [
+  { key: "pl_innotech", label: "PL INNOTECH", type: "text" },
+  { key: "partner", label: "Partner", type: "text" },
+  { key: "pl_kaufland", label: "PL Kaufland", type: "text" },
+  { key: "bestandsunterlagen", label: "Bestandsunterlagen", type: "status" },
+  { key: "objektidee", label: "Objektidee in Grundriss", type: "status" },
+  { key: "kickoff_init", label: "Kick-Off", type: "date" },
+  { key: "h_extra", label: "", type: "status" },
+  { key: "liste400", label: "400er Liste", type: "status" },
+  { key: "lzk", label: "LZK", type: "status" },
+  { key: "lph2", label: "LPH 2", type: "date" },
+  { key: "nachforderung", label: "Nachforderung", type: "date" },
+  { key: "lph3", label: "LPH 3", type: "date" },
+  { key: "kostenberechnung", label: "Kostenberechnung", type: "date" },
+  { key: "lkz", label: "LKZ", type: "status" },
+  { key: "lph56", label: "LPH 5-6", type: "date" },
+  { key: "versand", label: "Versand", type: "date" },
+  { key: "angebotsruecklauf", label: "Angebots-<br>rücklauf", type: "date" },
+  { key: "auswertung", label: "Auswertung", type: "date" },
+  { key: "techn_biet", label: "Techn. Bieter-<br>gespräche", type: "date" },
+  { key: "wirtsch_vergaben", label: "Wirtsch. Vergaben", type: "date" },
+  { key: "auftrag", label: "Auftrag", type: "date" },
+  { key: "aktuelle_lph", label: "Aktuelle LPH", type: "lph" },
+  { key: "tauwasser", label: "Abstimmung Tauwasseranschlüsse", type: "status" },
+  { key: "durchbruch", label: "Durchbruchsangaben", type: "status" },
+  { key: "elektroliste", label: "Elektroliste", type: "status" },
+  { key: "kg400koord", label: "KG 400 Koordination", type: "status" },
+  { key: "baubeginn", label: "Baubeginn", type: "date" },
+  { key: "kickoff_bau", label: "Kick Off", type: "status" },
+  { key: "bauende", label: "Bauende", type: "date" },
+];
+
+function excelCellContent(p, col) {
+  const v = p[col.key];
+  const isProvisional = (p._flagged_blue || []).includes(col.key);
+  const isFlagged = (p._flagged_red || []).includes(col.key);
+  let cls = [];
+  let text = "";
+
+  if (col.type === "status") {
+    const n = (v === null || v === undefined || v === "") ? 0 : v;
+    cls.push("xstat-" + n);
+    text = n === 0 ? "" : String(n);
+  } else if (col.type === "lph") {
+    cls.push("xlph");
+    text = (v === null || v === undefined) ? "" : String(v);
+  } else if (col.type === "date") {
+    if (v === "?") {
+      text = "?";
+    } else {
+      text = fmtDate(v) || "";
+    }
+    if (isProvisional) cls.push("xprovisional");
+    if (isFlagged) cls.push("xflagged");
+  } else {
+    text = v || "";
+  }
+  return { cls: cls.join(" "), text };
+}
+
+function renderExcelView() {
+  const table = document.getElementById("excel-table");
+  if (!table) return;
+  table.innerHTML = "";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.innerHTML = "<th>Projekt</th>" + EXCEL_COLUMNS.map(c => `<th title="${c.key === 'h_extra' ? 'Spalte ohne Titel im Original' : ''}">${c.label}</th>`).join("");
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  DATA.forEach(p => {
+    const tr = document.createElement("tr");
+    const th = document.createElement("th");
+    th.textContent = p.projekt;
+    tr.appendChild(th);
+    EXCEL_COLUMNS.forEach(col => {
+      const td = document.createElement("td");
+      const { cls, text } = excelCellContent(p, col);
+      if (cls) td.className = cls;
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+}
+
+// ---------- View tabs ----------
+function setupTabs() {
+  const tabs = { dashboard: document.getElementById("tab-dashboard"), excel: document.getElementById("tab-excel") };
+  const panels = { dashboard: document.getElementById("view-dashboard"), excel: document.getElementById("view-excel") };
+  Object.keys(tabs).forEach(key => {
+    tabs[key].addEventListener("click", () => {
+      Object.keys(tabs).forEach(k => {
+        tabs[k].classList.toggle("active", k === key);
+        panels[k].classList.toggle("hidden", k !== key);
+      });
+    });
+  });
+}
+
 // ---------- Add project ----------
 function setupAddProject() {
   document.getElementById("add-project-btn").addEventListener("click", async () => {
@@ -846,9 +1007,11 @@ function renderAll() {
   renderTimeline();
   renderTable();
   renderGaps();
+  renderExcelView();
 }
 
 setupTheme();
+setupTabs();
 setupAddProject();
 loadData();
 
