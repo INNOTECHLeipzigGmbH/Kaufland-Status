@@ -334,7 +334,7 @@
   </div>
 
   <footer class="legend">
-    <p><b>Ampel-Checklisten</b> (Bestandsunterlagen, Objektidee, 400er Liste, LZK, Tauwasseranschlüsse, Durchbruchsangaben, Elektroliste, KG-400-Koordination, Kick-Off Baustelle, Spalte&nbsp;H ohne Titel): 1 = offen/kritisch, 2 = in Bearbeitung, 3 = erledigt – jeweils nach der Ampel-Symbolik aus der Originaldatei. Leer = noch nicht begonnen.</p>
+    <p><b>Ampel-Checklisten</b> (u.a. Bestandsunterlagen, Objektidee, 400er Liste, LZK, Grundleitungen, Tauwasser-Punkte, Einrichtungsplan, Statik Wärmepumpe/RLT-Gerät, Durchbruchsangaben, Elektroliste, Deckenspiegel je Bereich, KG-400-Koordination, Kick-Off Baustelle, Spalte&nbsp;H ohne Titel): 1 = offen/kritisch, 2 = in Bearbeitung, 3 = erledigt – jeweils nach der Ampel-Symbolik aus der Originaldatei. Leer = noch nicht begonnen.</p>
     <p><b>„*“ hinter einem Termin</b> markiert Zellen, die in der Originaldatei blau hinterlegt waren (vermutlich vorläufige/zu prüfende Termine statt bestätigter Termine – bitte gegenprüfen).</p>
     <p><b>Offene Fragen an das Team:</b> Wofür stehen die Kürzel „LZK“ (Spalte J) und „LKZ“ (Spalte O) genau? Und wozu dient die Spalte zwischen „Kick-Off“ und „400er Liste“, die in der Vorlage keinen Titel trägt (hier als „Zusatzcheck Spalte H“ bezeichnet)? Eine kurze Antwort hilft, den Report inhaltlich zu schärfen.</p>
   </footer>
@@ -366,10 +366,19 @@ const FIELD_LABELS = {
   techn_biet: "Techn. Bietergespräche", wirtsch_vergaben: "Wirtsch. Vergaben", auftrag: "Auftrag",
   aktuelle_lph: "Aktuelle LPH", tauwasser: "Abstimmung Tauwasseranschlüsse", durchbruch: "Durchbruchsangaben",
   elektroliste: "Elektroliste", kg400koord: "KG 400 Koordination", baubeginn: "Baubeginn",
-  kickoff_bau: "Kick-Off (Baustelle)", bauende: "Bauende"
+  kickoff_bau: "Kick-Off (Baustelle)", bauende: "Bauende",
+  grundleitungen: "Grundleitungen", bestand_tauwasser: "Bestandsaufnahme Tauwasser",
+  neue_tauwasser_kuehlmoebel: "Neue Tauwasseranschlüsse Kühlmöbel", einrichtungsplan: "Einrichtungsplan",
+  statik_waermepumpe: "Statik Wärmepumpe", statik_rlt: "Statik RLT-Gerät",
+  deckenspiegel_backshop: "Deckenspiegel Backshop", deckenspiegel_kundenwc: "Deckenspiegel Kunden-WC",
+  deckenspiegel_personal: "Deckenspiegel Personal", deckenspiegel_wareneingang: "Deckenspiegel Wareneingangsbüro"
 };
 const MILESTONE_ORDER = ["kickoff_init","lph2","nachforderung","lph3","kostenberechnung","lph56","versand","angebotsruecklauf","auswertung","techn_biet","wirtsch_vergaben","auftrag","baubeginn","bauende"];
-const CHECKLIST_ORDER = ["bestandsunterlagen","objektidee","h_extra","liste400","lzk","tauwasser","durchbruch","elektroliste","kg400koord","kickoff_bau"];
+const CHECKLIST_ORDER = ["bestandsunterlagen","objektidee","h_extra","liste400","lzk",
+  "grundleitungen","bestand_tauwasser","neue_tauwasser_kuehlmoebel","einrichtungsplan","statik_waermepumpe","statik_rlt",
+  "tauwasser","durchbruch","elektroliste",
+  "deckenspiegel_backshop","deckenspiegel_kundenwc","deckenspiegel_personal","deckenspiegel_wareneingang",
+  "kg400koord","kickoff_bau"];
 const TODAY = new Date(new Date().toDateString());
 
 function projNum(p) {
@@ -470,10 +479,15 @@ async function createProject(name) {
   const payload = {
     projekt: name, pl_innotech: null, partner: null, pl_kaufland: null,
     bestandsunterlagen: null, objektidee: null, kickoff_init: null, h_extra: null,
-    liste400: null, lzk: null, lph2: null, nachforderung: null, lph3: null,
+    liste400: null, lzk: null,
+    grundleitungen: null, bestand_tauwasser: null, neue_tauwasser_kuehlmoebel: null,
+    einrichtungsplan: null, statik_waermepumpe: null, statik_rlt: null,
+    lph2: null, nachforderung: null, lph3: null,
     kostenberechnung: null, lkz: null, lph56: null, versand: null, angebotsruecklauf: null,
     auswertung: null, techn_biet: null, wirtsch_vergaben: null, auftrag: null,
     aktuelle_lph: null, tauwasser: null, durchbruch: null, elektroliste: null,
+    deckenspiegel_backshop: null, deckenspiegel_kundenwc: null,
+    deckenspiegel_personal: null, deckenspiegel_wareneingang: null,
     kg400koord: null, baubeginn: null, kickoff_bau: null, bauende: null,
     _flagged_blue: [], _flagged_red: [],
   };
@@ -875,6 +889,12 @@ const EXCEL_COLUMNS = [
   { key: "h_extra", label: "", type: "status" },
   { key: "liste400", label: "400er Liste", type: "status" },
   { key: "lzk", label: "LZK", type: "status" },
+  { key: "grundleitungen", label: "Grundleitungen", type: "status" },
+  { key: "bestand_tauwasser", label: "Bestandsaufnahme Tauwasser", type: "status" },
+  { key: "neue_tauwasser_kuehlmoebel", label: "Neue Tauwasseranschlüsse Kühlmöbel", type: "status" },
+  { key: "einrichtungsplan", label: "Einrichtungsplan", type: "status" },
+  { key: "statik_waermepumpe", label: "Statik Wärmepumpe", type: "status" },
+  { key: "statik_rlt", label: "Statik RLT-Gerät", type: "status" },
   { key: "lph2", label: "LPH 2", type: "date" },
   { key: "nachforderung", label: "Nachforderung", type: "date" },
   { key: "lph3", label: "LPH 3", type: "date" },
@@ -891,6 +911,10 @@ const EXCEL_COLUMNS = [
   { key: "tauwasser", label: "Abstimmung Tauwasseranschlüsse", type: "status" },
   { key: "durchbruch", label: "Durchbruchsangaben", type: "status" },
   { key: "elektroliste", label: "Elektroliste", type: "status" },
+  { key: "deckenspiegel_backshop", label: "Deckenspiegel Backshop", type: "status" },
+  { key: "deckenspiegel_kundenwc", label: "Deckenspiegel Kunden-WC", type: "status" },
+  { key: "deckenspiegel_personal", label: "Deckenspiegel Personal", type: "status" },
+  { key: "deckenspiegel_wareneingang", label: "Deckenspiegel Wareneingangsbüro", type: "status" },
   { key: "kg400koord", label: "KG 400 Koordination", type: "status" },
   { key: "baubeginn", label: "Baubeginn", type: "date" },
   { key: "kickoff_bau", label: "Kick Off", type: "status" },
