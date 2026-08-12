@@ -168,6 +168,14 @@
   .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; }
   .notes-box { margin-top: 12px; font-size: 12px; color: var(--text-secondary); background: color-mix(in srgb, var(--status-warning) 10%, transparent); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 
+  /* Notizen / ToDos */
+  .todo-block { grid-column: 1 / -1; }
+  .todo-display { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; line-height: 1.55; }
+  .todo-display.empty { color: var(--text-muted); font-style: italic; }
+  .notes-textarea { width: 100%; min-height: 90px; resize: vertical; font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; box-sizing: border-box; line-height: 1.5; }
+  .notes-textarea:focus { outline: none; border-color: var(--series-1); }
+  .todo-indicator { font-size: 11px; margin-left: 6px; color: var(--series-1); }
+
   /* gaps list */
   .gaps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .gap-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
@@ -371,7 +379,8 @@ const FIELD_LABELS = {
   neue_tauwasser_kuehlmoebel: "Neue Tauwasseranschlüsse Kühlmöbel", einrichtungsplan: "Einrichtungsplan",
   statik_waermepumpe: "Statik Wärmepumpe", statik_rlt: "Statik RLT-Gerät",
   deckenspiegel_backshop: "Deckenspiegel Backshop", deckenspiegel_kundenwc: "Deckenspiegel Kunden-WC",
-  deckenspiegel_personal: "Deckenspiegel Personal", deckenspiegel_wareneingang: "Deckenspiegel Wareneingangsbüro"
+  deckenspiegel_personal: "Deckenspiegel Personal", deckenspiegel_wareneingang: "Deckenspiegel Wareneingangsbüro",
+  notizen: "Notizen / ToDos"
 };
 const MILESTONE_ORDER = ["kickoff_init","lph2","nachforderung","lph3","kostenberechnung","lph56","versand","angebotsruecklauf","auswertung","techn_biet","wirtsch_vergaben","auftrag","baubeginn","bauende"];
 const CHECKLIST_ORDER = ["bestandsunterlagen","objektidee","h_extra","liste400","lzk",
@@ -390,6 +399,11 @@ function fmtDate(iso) {
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d)) return null;
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
 }
 function statusChip(value, label) {
   const wrap = document.createElement("span");
@@ -489,6 +503,7 @@ async function createProject(name) {
     deckenspiegel_backshop: null, deckenspiegel_kundenwc: null,
     deckenspiegel_personal: null, deckenspiegel_wareneingang: null,
     kg400koord: null, baubeginn: null, kickoff_bau: null, bauende: null,
+    notizen: null,
     _flagged_blue: [], _flagged_red: [],
   };
   const res = await fetch(REST, {
@@ -688,6 +703,17 @@ function buildEditForm(p) {
   form.appendChild(cols);
   form.appendChild(checklistBlock);
 
+  const notesBlock = document.createElement("div");
+  notesBlock.className = "detail-block";
+  notesBlock.innerHTML = "<h4>Notizen / ToDos</h4>";
+  const notesArea = document.createElement("textarea");
+  notesArea.className = "notes-textarea";
+  notesArea.dataset.key = "notizen";
+  notesArea.placeholder = "Freitext, z.B. offene Fragen, nächste Schritte, Verantwortlichkeiten …";
+  notesArea.value = p.notizen || "";
+  notesBlock.appendChild(notesArea);
+  form.appendChild(notesBlock);
+
   const actions = document.createElement("div");
   actions.className = "edit-actions";
   actions.innerHTML = `<button type="button" class="btn-primary" data-action="save">Speichern</button>
@@ -724,7 +750,7 @@ function renderTable() {
     const main = document.createElement("tr");
     main.className = "main-row" + (isExpanded ? " expanded" : "");
     main.innerHTML = `
-      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span></td>
+      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span>${p.notizen ? '<span class="todo-indicator" title="Notizen / ToDos vorhanden">📝</span>' : ''}</td>
       <td>${p.pl_innotech || '<span class="empty-dash">–</span>'}</td>
       <td>${p.pl_kaufland || '<span class="empty-dash">–</span>'}</td>
       <td></td>
@@ -818,6 +844,21 @@ function renderTable() {
 
       cols.appendChild(milestoneBlock);
       cols.appendChild(checklistBlock);
+
+      const todoBlock = document.createElement("div");
+      todoBlock.className = "detail-block todo-block";
+      todoBlock.innerHTML = "<h4>Notizen / ToDos</h4>";
+      const todoDisplay = document.createElement("div");
+      if (p.notizen && p.notizen.trim()) {
+        todoDisplay.className = "todo-display";
+        todoDisplay.textContent = p.notizen;
+      } else {
+        todoDisplay.className = "todo-display empty";
+        todoDisplay.textContent = "Noch keine Notizen erfasst.";
+      }
+      todoBlock.appendChild(todoDisplay);
+      cols.appendChild(todoBlock);
+
       inner.appendChild(cols);
 
       if (gaps.length) {
