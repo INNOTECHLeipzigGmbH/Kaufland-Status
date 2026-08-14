@@ -176,6 +176,14 @@
   .notes-textarea:focus { outline: none; border-color: var(--series-1); }
   .todo-indicator { font-size: 11px; margin-left: 6px; color: var(--series-1); }
 
+  /* INNOTECH-ToDos aus Protokollen */
+  .proto-todo-list { display: flex; flex-direction: column; gap: 8px; }
+  .proto-todo-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface-1); }
+  .proto-todo-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .proto-todo-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+  .proto-todo-body { font-size: 12px; color: var(--text-secondary); white-space: pre-wrap; margin-top: 4px; line-height: 1.5; }
+  .proto-todo-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 6px; }
+
   /* gaps list */
   .gaps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .gap-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
@@ -354,6 +362,8 @@ const SUPABASE_URL = "https://beszfzvxtfwdzimixdbo.supabase.co";
 const SUPABASE_KEY = "sb_publishable_onY7q5GNCGOxkEuzEOySDA_XyIqR6Rw";
 const TABLE = "kaufland_status";
 const REST = `${SUPABASE_URL}/rest/v1/${TABLE}`;
+const PROTO_REST = `${SUPABASE_URL}/rest/v1/protokolle`;
+const ORDNER_REST = `${SUPABASE_URL}/rest/v1/ordner`;
 const HEADERS = {
   apikey: SUPABASE_KEY,
   Authorization: `Bearer ${SUPABASE_KEY}`,
@@ -361,8 +371,59 @@ const HEADERS = {
 };
 
 let DATA = [];
+let PROTOKOLLE = [];
+let ORDNER = [];
 let expandedId = null;
 let editingId = null;
+
+// ---------- INNOTECH-ToDos aus der Protokoll-App ----------
+// Projektnummer-Konvention: Kaufland-Projekt "37 Naumburg ..." -> Protokoll-Ordner "50337 ..."
+// (bestätigt anhand der bestehenden Protokoll-Ordner für Naumburg/37, Mühlhausen/39, Döbeln/41, Borna/44, Taucha/47, Arnstadt/48)
+const TODO_STATUSES = ["offen", "läuft"]; // Annahme: "offen" + "läuft" zählen als aktuelle ToDos; Info/Festlegung/erledigt nicht
+
+function kaufNr(p) {
+  const m = (p.projekt || "").match(/^(\d{1,3})\b/);
+  if (!m) return null;
+  return "503" + m[1].padStart(2, "0");
+}
+
+function ordnerForProject(p) {
+  const nr = kaufNr(p);
+  if (!nr) return null;
+  return ORDNER.find(o => (o.name || "").trim().startsWith(nr));
+}
+
+function innotechTodosForProject(p) {
+  const ordner = ordnerForProject(p);
+  if (!ordner) return [];
+  const protos = PROTOKOLLE.filter(pr => (pr.data && pr.data.meta && pr.data.meta.ordner_id) === ordner.id);
+  const items = [];
+  protos.forEach(pr => {
+    const sections = (pr.data && pr.data.data) || {};
+    const labelByKey = {};
+    ((pr.data && pr.data.sections) || []).forEach(s => { labelByKey[s.key] = s.label; });
+    Object.entries(sections).forEach(([key, arr]) => {
+      (arr || []).forEach(it => {
+        const status = (it.status || "").trim();
+        const verantwortlich = it.verantwortlich || "";
+        if (!/innotech/i.test(verantwortlich)) return;
+        if (!TODO_STATUSES.includes(status)) return;
+        items.push({
+          titel: it.titel || labelByKey[key] || "(ohne Titel)",
+          inhalt: it.inhalt || "",
+          status,
+          termin: it.termin || "",
+          verantwortlich,
+          section: labelByKey[key] || key,
+          protoNr: (pr.data && pr.data.meta && pr.data.meta.nr) || "",
+          protoDatum: (pr.data && pr.data.meta && pr.data.meta.datum) || "",
+        });
+      });
+    });
+  });
+  items.sort((a, b) => (b.protoDatum || "").localeCompare(a.protoDatum || ""));
+  return items;
+}
 
 const FIELD_LABELS = {
   pl_innotech: "PL Innotech", partner: "Partner", pl_kaufland: "PL Kaufland",
@@ -422,6 +483,12 @@ function statusChip(value, label) {
   }
   return wrap;
 }
+function protoStatusChip(status) {
+  const span = document.createElement("span");
+  span.className = "chip " + (status === "läuft" ? "chip-warning" : "chip-critical");
+  span.innerHTML = `<span class="chip-dot"></span>${status}`;
+  return span;
+}
 function lphBadge(v) {
   const span = document.createElement("span");
   if (v === null || v === undefined) {
@@ -455,6 +522,22 @@ function computeGaps(p) {
 }
 
 // ---------- Data loading & saving ----------
+async function loadProtokollData() {
+  // Best-effort: die INNOTECH-ToDos aus der Protokoll-App sind eine Zusatzinfo.
+  // Schlägt das fehl (z.B. Netzwerk), bleibt das Dashboard trotzdem nutzbar.
+  try {
+    const [ordnerRes, protoRes] = await Promise.all([
+      fetch(`${ORDNER_REST}?select=id,name`, { headers: HEADERS }),
+      fetch(`${PROTO_REST}?select=id,data,updated_at`, { headers: HEADERS }),
+    ]);
+    ORDNER = ordnerRes.ok ? await ordnerRes.json() : [];
+    PROTOKOLLE = protoRes.ok ? await protoRes.json() : [];
+  } catch (err) {
+    ORDNER = [];
+    PROTOKOLLE = [];
+  }
+}
+
 async function loadData() {
   const statusEl = document.getElementById("load-status");
   statusEl.textContent = "Lade Daten aus Supabase …";
@@ -465,6 +548,7 @@ async function loadData() {
     const rows = await res.json();
     DATA = rows.map(r => ({ ...r.data, _id: r.id, _updated_at: r.updated_at }));
     DATA.sort((a, b) => projNum(a) - projNum(b) || (a.projekt || "").localeCompare(b.projekt || ""));
+    await loadProtokollData();
     statusEl.textContent = "";
     renderAll();
   } catch (err) {
@@ -746,11 +830,12 @@ function renderTable() {
   tbody.innerHTML = "";
   DATA.forEach((p, idx) => {
     const gaps = computeGaps(p);
+    const innoTodos = innotechTodosForProject(p);
     const isExpanded = p._id === expandedId;
     const main = document.createElement("tr");
     main.className = "main-row" + (isExpanded ? " expanded" : "");
     main.innerHTML = `
-      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span>${p.notizen ? '<span class="todo-indicator" title="Notizen / ToDos vorhanden">📝</span>' : ''}</td>
+      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span>${p.notizen ? '<span class="todo-indicator" title="Notizen / ToDos vorhanden">📝</span>' : ''}${innoTodos.length ? `<span class="todo-indicator" title="${innoTodos.length} offene INNOTECH-ToDo(s) aus Protokollen">📋 ${innoTodos.length}</span>` : ''}</td>
       <td>${p.pl_innotech || '<span class="empty-dash">–</span>'}</td>
       <td>${p.pl_kaufland || '<span class="empty-dash">–</span>'}</td>
       <td></td>
@@ -858,6 +943,55 @@ function renderTable() {
       }
       todoBlock.appendChild(todoDisplay);
       cols.appendChild(todoBlock);
+
+      const innoBlock = document.createElement("div");
+      innoBlock.className = "detail-block todo-block";
+      innoBlock.innerHTML = "<h4>Offene INNOTECH-ToDos aus Protokollen</h4>";
+      if (innoTodos.length) {
+        const list = document.createElement("div");
+        list.className = "proto-todo-list";
+        innoTodos.forEach(t => {
+          const item = document.createElement("div");
+          item.className = "proto-todo-item";
+
+          const head = document.createElement("div");
+          head.className = "proto-todo-head";
+          const titleEl = document.createElement("span");
+          titleEl.className = "proto-todo-title";
+          titleEl.textContent = t.titel;
+          head.appendChild(titleEl);
+          head.appendChild(protoStatusChip(t.status));
+          item.appendChild(head);
+
+          if (t.inhalt) {
+            const body = document.createElement("div");
+            body.className = "proto-todo-body";
+            body.textContent = t.inhalt;
+            item.appendChild(body);
+          }
+
+          const meta = document.createElement("div");
+          meta.className = "proto-todo-meta";
+          const metaParts = [];
+          if (t.termin) metaParts.push("Termin: " + t.termin);
+          if (t.protoNr) metaParts.push("Protokoll Nr. " + t.protoNr);
+          if (t.protoDatum) metaParts.push(fmtDate(t.protoDatum) || t.protoDatum);
+          if (t.section) metaParts.push(t.section);
+          meta.textContent = metaParts.join(" · ");
+          item.appendChild(meta);
+
+          list.appendChild(item);
+        });
+        innoBlock.appendChild(list);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "todo-display empty";
+        empty.textContent = ordnerForProject(p)
+          ? "Keine offenen INNOTECH-Punkte in den Protokollen."
+          : "Noch kein Protokoll-Ordner für dieses Projekt gefunden.";
+        innoBlock.appendChild(empty);
+      }
+      cols.appendChild(innoBlock);
 
       inner.appendChild(cols);
 
