@@ -393,10 +393,31 @@ function ordnerForProject(p) {
   return ORDNER.find(o => (o.name || "").trim().startsWith(nr));
 }
 
+function protoSortKey(pr) {
+  const datum = (pr.data && pr.data.meta && pr.data.meta.datum) || "";
+  const savedAt = (pr.data && pr.data.meta && pr.data.meta.savedAt) || "";
+  return datum + "T" + savedAt; // lexikographisch sortierbar: erst Datum, dann Speicherzeitpunkt
+}
+
+// Pro Besprechungstyp (meta.typ) nur das jeweils letzte/neueste Protokoll behalten –
+// ältere Protokolle desselben Typs können durch die neueren überholt sein.
+function latestProtokolleByType(protos) {
+  const byType = {};
+  protos.forEach(pr => {
+    const typ = (pr.data && pr.data.meta && pr.data.meta.typ) || "";
+    const existing = byType[typ];
+    if (!existing || protoSortKey(pr) > protoSortKey(existing)) {
+      byType[typ] = pr;
+    }
+  });
+  return Object.values(byType);
+}
+
 function innotechTodosForProject(p) {
   const ordner = ordnerForProject(p);
   if (!ordner) return [];
-  const protos = PROTOKOLLE.filter(pr => (pr.data && pr.data.meta && pr.data.meta.ordner_id) === ordner.id);
+  const allProtos = PROTOKOLLE.filter(pr => (pr.data && pr.data.meta && pr.data.meta.ordner_id) === ordner.id);
+  const protos = latestProtokolleByType(allProtos);
   const items = [];
   protos.forEach(pr => {
     const sections = (pr.data && pr.data.data) || {};
