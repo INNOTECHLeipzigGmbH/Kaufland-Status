@@ -379,7 +379,7 @@ let editingId = null;
 // ---------- INNOTECH-ToDos aus der Protokoll-App ----------
 // Projektnummer-Konvention: Kaufland-Projekt "37 Naumburg ..." -> Protokoll-Ordner "50337 ..."
 // (bestätigt anhand der bestehenden Protokoll-Ordner für Naumburg/37, Mühlhausen/39, Döbeln/41, Borna/44, Taucha/47, Arnstadt/48)
-const TODO_STATUSES = ["offen", "läuft"]; // Annahme: "offen" + "läuft" zählen als aktuelle ToDos; Info/Festlegung/erledigt nicht
+const TODO_STATUSES = ["offen", "Info", "läuft", "Festlegung"]; // alles außer "erledigt" zählt als aktueller Punkt
 
 function kaufNr(p) {
   const m = (p.projekt || "").match(/^(\d{1,3})\b/);
@@ -506,7 +506,13 @@ function statusChip(value, label) {
 }
 function protoStatusChip(status) {
   const span = document.createElement("span");
-  span.className = "chip " + (status === "läuft" ? "chip-warning" : "chip-critical");
+  const clsByStatus = {
+    "offen": "chip-critical",
+    "läuft": "chip-warning",
+    "Festlegung": "chip-good",
+    "Info": "chip-muted",
+  };
+  span.className = "chip " + (clsByStatus[status] || "chip-muted");
   span.innerHTML = `<span class="chip-dot"></span>${status}`;
   return span;
 }
