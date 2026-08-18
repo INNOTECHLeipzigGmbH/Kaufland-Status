@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kaufland-Projekte – Statusreport</title>
+<title>Projekte-Statusreport</title>
 <style>
   .viz-root {
     color-scheme: light;
@@ -279,8 +279,8 @@
 
   <div class="topbar">
     <div>
-      <p class="title">Kaufland-Projekte – Statusreport</p>
-      <p class="subtitle">Automatisch erzeugt aus „Aufstellung Kaufländer.xlsx“ · INNOTECH Leipzig</p>
+      <p class="title">Projekte-Statusreport</p>
+      <p class="subtitle">Alle INNOTECH-Projekte im Überblick · INNOTECH Leipzig</p>
       <p class="meta" id="generated-meta"></p>
       <p class="load-status" id="load-status"></p>
     </div>
@@ -320,8 +320,9 @@
       <thead>
         <tr>
           <th>Projekt</th>
+          <th>Auftraggeber</th>
           <th>PL Innotech</th>
-          <th>PL Kaufland</th>
+          <th>PL Kunde</th>
           <th>Aktuelle LPH</th>
           <th>Baubeginn</th>
           <th>Bauende</th>
@@ -382,13 +383,15 @@ let editingId = null;
 const TODO_STATUSES = ["offen", "Info", "läuft", "Festlegung"]; // alles außer "erledigt" zählt als aktueller Punkt
 
 function kaufNr(p) {
+  // Fallback für ältere Kaufland-Datensätze ohne explizites "projektnummer"-Feld:
+  // "37 Naumburg ..." -> Protokoll-Ordner "50337 ..."
   const m = (p.projekt || "").match(/^(\d{1,3})\b/);
   if (!m) return null;
   return "503" + m[1].padStart(2, "0");
 }
 
 function ordnerForProject(p) {
-  const nr = kaufNr(p);
+  const nr = (p.projektnummer || "").trim() || kaufNr(p);
   if (!nr) return null;
   return ORDNER.find(o => (o.name || "").trim().startsWith(nr));
 }
@@ -447,7 +450,8 @@ function innotechTodosForProject(p) {
 }
 
 const FIELD_LABELS = {
-  pl_innotech: "PL Innotech", partner: "Partner", pl_kaufland: "PL Kaufland",
+  projektnummer: "Projektnummer", auftraggeber: "Auftraggeber",
+  pl_innotech: "PL Innotech", partner: "Partner", pl_kaufland: "PL Kunde",
   bestandsunterlagen: "Bestandsunterlagen", objektidee: "Objektidee im Grundriss",
   kickoff_init: "Kick-Off (Initiierung)", h_extra: "Zusatzcheck (Spalte H)",
   liste400: "400er Liste", lzk: "LZK", lph2: "LPH 2", nachforderung: "Nachforderung",
@@ -540,7 +544,7 @@ function computeGaps(p) {
     gaps.push("Projekt komplett unbearbeitet – noch keine Daten erfasst.");
     return gaps;
   }
-  if (!p.pl_innotech && !p.pl_kaufland) gaps.push("Kein Projektleiter zugeordnet (weder PL Innotech noch PL Kaufland).");
+  if (!p.pl_innotech && !p.pl_kaufland) gaps.push("Kein Projektleiter zugeordnet (weder PL Innotech noch PL Kunde).");
   if (p.aktuelle_lph === null || p.aktuelle_lph === undefined) gaps.push("„Aktuelle LPH“ fehlt, obwohl bereits Termine/Checklisten-Einträge vorhanden sind.");
   if (p.kickoff_init === "?") gaps.push("Kick-Off-Termin (Initiierung) ist mit „?“ markiert – Termin unklar.");
   if (p.baubeginn && !p.bauende) gaps.push("Baubeginn ist gesetzt, Bauende aber noch offen.");
@@ -600,9 +604,9 @@ async function saveProject(id, dataObj) {
 }
 
 async function createProject(name) {
-  const id = "kaufland-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
+  const id = "proj-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
   const payload = {
-    projekt: name, pl_innotech: null, partner: null, pl_kaufland: null,
+    projekt: name, projektnummer: null, auftraggeber: null, pl_innotech: null, partner: null, pl_kaufland: null,
     bestandsunterlagen: null, objektidee: null, kickoff_init: null, h_extra: null,
     liste400: null, lzk: null,
     grundleitungen: null, bestand_tauwasser: null, neue_tauwasser_kuehlmoebel: null,
@@ -740,12 +744,31 @@ function buildEditForm(p) {
   const form = document.createElement("div");
   form.className = "edit-form";
 
+  const projBlock = document.createElement("div");
+  projBlock.className = "detail-block";
+  projBlock.innerHTML = "<h4>Projekt</h4>";
+  const projGrid = document.createElement("div");
+  projGrid.className = "edit-grid";
+  [["projektnummer","Projektnummer"],["auftraggeber","Auftraggeber"]].forEach(([key,label]) => {
+    const wrap = document.createElement("label");
+    wrap.className = "edit-field";
+    wrap.innerHTML = `<span>${label}</span>`;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.key = key;
+    input.value = p[key] || "";
+    wrap.appendChild(input);
+    projGrid.appendChild(wrap);
+  });
+  projBlock.appendChild(projGrid);
+  form.appendChild(projBlock);
+
   const respBlock = document.createElement("div");
   respBlock.className = "detail-block";
   respBlock.innerHTML = "<h4>Verantwortliche</h4>";
   const respGrid = document.createElement("div");
   respGrid.className = "edit-grid";
-  [["pl_innotech","PL Innotech"],["pl_kaufland","PL Kaufland"],["partner","Partner"]].forEach(([key,label]) => {
+  [["pl_innotech","PL Innotech"],["pl_kaufland","PL Kunde"],["partner","Partner"]].forEach(([key,label]) => {
     const wrap = document.createElement("label");
     wrap.className = "edit-field";
     wrap.innerHTML = `<span>${label}</span>`;
@@ -863,6 +886,7 @@ function renderTable() {
     main.className = "main-row" + (isExpanded ? " expanded" : "");
     main.innerHTML = `
       <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span>${p.notizen ? '<span class="todo-indicator" title="Notizen / ToDos vorhanden">📝</span>' : ''}${innoTodos.length ? `<span class="todo-indicator" title="${innoTodos.length} offene INNOTECH-ToDo(s) aus Protokollen">📋 ${innoTodos.length}</span>` : ''}</td>
+      <td>${p.auftraggeber || '<span class="empty-dash">–</span>'}</td>
       <td>${p.pl_innotech || '<span class="empty-dash">–</span>'}</td>
       <td>${p.pl_kaufland || '<span class="empty-dash">–</span>'}</td>
       <td></td>
@@ -870,13 +894,13 @@ function renderTable() {
       <td>${fmtDate(p.bauende) || '<span class="empty-dash">–</span>'}</td>
       <td>${gaps.length ? `<span class="count-badge">${gaps.length}</span>` : '<span class="empty-dash">–</span>'}</td>
     `;
-    main.children[3].appendChild(lphBadge(p.aktuelle_lph));
+    main.children[4].appendChild(lphBadge(p.aktuelle_lph));
     tbody.appendChild(main);
 
     const detail = document.createElement("tr");
     detail.className = "detail-row" + (isExpanded ? "" : " collapsed");
     const td = document.createElement("td");
-    td.colSpan = 7;
+    td.colSpan = 8;
     const inner = document.createElement("div");
     inner.className = "detail-inner";
 
@@ -1082,9 +1106,11 @@ function renderGaps() {
 
 // ---------- Excel-style table view ----------
 const EXCEL_COLUMNS = [
+  { key: "projektnummer", label: "Projektnummer", type: "text" },
+  { key: "auftraggeber", label: "Auftraggeber", type: "text" },
   { key: "pl_innotech", label: "PL INNOTECH", type: "text" },
   { key: "partner", label: "Partner", type: "text" },
-  { key: "pl_kaufland", label: "PL Kaufland", type: "text" },
+  { key: "pl_kaufland", label: "PL Kunde", type: "text" },
   { key: "bestandsunterlagen", label: "Bestandsunterlagen", type: "status" },
   { key: "objektidee", label: "Objektidee in Grundriss", type: "status" },
   { key: "kickoff_init", label: "Kick-Off", type: "date" },
